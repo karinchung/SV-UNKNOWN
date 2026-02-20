@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ITERATION — ASCII Tile Library</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /*
+     * PALETTE: PHOSPHOR TERMINAL
+     * Colorblind rationale:
+     *  - Primary differentiation is CHARACTER SHAPE, not color (ASCII advantage)
+     *  - Phosphor green reads as yellow-white for red-green colorblind — still distinct
+     *  - Water is deep navy (blue reads across all major colorblind types)
+     *  - Danger uses amber-orange, NOT red (red fails for protanopia/deuteranopia)
+     *  - No red/green pair is ever used as the sole differentiator
+     *  - Hostile vs NPC: different characters + amber vs bright-phosphor
+     *  - IDENTITY_DRIFT color shift: subtle phosphor→cool-phosphor, not a flag
+     */
+    :root {
+      --bg:         #010201;   /* near-black, hair of warmth */
+      --floor:      #0d1a0f;   /* very dark phosphor trough */
+      --wall:       #1a3320;   /* dim phosphor — passable/impassable readable by char */
+      --ph-primary: #4dba65;   /* phosphor green — main tile/text color */
+      --ph-bright:  #8ee09a;   /* bright phosphor — player, highlighted */
+      --ph-dim:     #1a4a20;   /* visited-not-visible */
+      --ph-off:     #0d2410;   /* out-of-sight floor */
+      --ph-glow:    #b8ffcc;   /* terminal glow, IRIS, special */
+      --water:      #1a3d80;   /* deep navy — safe across colorblind types */
+      --water-surf: #2a5aaa;   /* water surface highlight */
+      --danger:     #c87800;   /* amber-orange — NOT red, works for protanopia */
+      --fire:       #d48000;   /* fire, slightly brighter amber */
+      --item:       #c0a000;   /* loot — warm yellow, distinct from phosphor */
+      --npc:        #9ad8a8;   /* friendly NPC — lighter phosphor */
+      --hostile:    #d48800;   /* amber-hostile — distinct luminance from npc */
+      --dead:       #2a3a2a;   /* corpse — very dark, nearly bg */
+      --mountain:   #6a8a6a;   /* gray-green — peaks */
+      --rubble:     #3a4a3a;   /* rubble — dark muted */
+      --nature:     #2d6040;   /* forest/shrub — deeper green, distinct from ph-primary */
+      --grass:      #3a7040;   /* lighter forest floor */
+      --panel:      #050e07;   /* UI panel bg */
+      --border:     #1a3320;   /* panel border */
+      --text-ui:    #6ab878;   /* UI text — readable phosphor, not full bright */
+      --drift-shift:#5abba0;   /* IDENTITY_DRIFT late-game log shift — subtly cooler */
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-ui);
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: var(--ph-bright);
+      font-size: 1.5rem;
+      letter-spacing: 0.15em;
+      margin-bottom: 0.25rem;
+      text-shadow: 0 0 8px var(--ph-primary);
+    }
+
+    .subtitle {
+      color: var(--wall);
+      font-size: 0.85rem;
+      margin-bottom: 2.5rem;
+    }
+
+    h2 {
+      color: var(--ph-primary);
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 2.5rem 0 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+    }
+
+    /* TILE GRID */
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .tile-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.6rem 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: default;
+      transition: border-color 0.15s;
+    }
+
+    .tile-card:hover {
+      border-color: var(--ph-primary);
+    }
+
+    .tile-char {
+      font-size: 1.6rem;
+      font-weight: 700;
+      width: 1.8rem;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .tile-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tile-name {
+      font-size: 0.78rem;
+      color: var(--ph-primary);
+      font-weight: 700;
+    }
+
+    .tile-use {
+      font-size: 0.68rem;
+      color: var(--wall);
+      margin-top: 0.1rem;
+    }
+
+    /* COLOR PALETTE */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .palette-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .color-swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid #333;
+    }
+
+    .color-info .color-name {
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .color-info .color-hex {
+      font-size: 0.68rem;
+      color: #667;
+    }
+
+    /* ROOM TEMPLATES */
+    .rooms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .room-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem;
+    }
+
+    .room-label {
+      color: var(--warning);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.6rem;
+    }
+
+    .room-desc {
+      color: #667;
+      font-size: 0.68rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .room-grid {
+      display: inline-grid;
+      gap: 0;
+      line-height: 1.4;
+      background: var(--bg);
+      padding: 0.5rem;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+
+    .room-row {
+      display: flex;
+    }
+
+    .cell {
+      width: 1ch;
+      text-align: center;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    /* LEVEL THEMES */
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .theme-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.8rem 1rem;
+    }
+
+    .theme-name {
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 0.3rem;
+    }
+
+    .theme-tiles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .theme-tile {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .theme-desc {
+      font-size: 0.68rem;
+      color: #667;
+      margin-top: 0.35rem;
+      line-height: 1.5;
+    }
+
+    /* INTERACTIVE DEMO */
+    #demo-container {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    #demo-label {
+      color: var(--warning);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    #demo-grid {
+      font-size: 1.1rem;
+      line-height: 1.5;
+      letter-spacing: 0.05em;
+    }
+
+    .demo-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .demo-btn {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text-ui);
+      font-family: inherit;
+      font-size: 0.75rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .demo-btn:hover { border-color: var(--ph-primary); color: var(--ph-bright); }
+    .demo-btn.active { border-color: var(--ph-primary); color: var(--ph-bright); }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: #445;
+      font-size: 0.72rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>ITERATION — ASCII TILE LIBRARY</h1>
+<p class="subtitle">Reference for developers — all tiles, colors, templates, and level themes</p>
+
+<!-- ============================================================ TILES -->
+<h2>Core Tile Set</h2>
+<div class="tile-grid" id="tile-grid"></div>
+
+<!-- ============================================================ COLOR PALETTE -->
+<h2>Color Palette</h2>
+<div class="palette-grid" id="palette-grid"></div>
+
+<!-- ============================================================ ROOM DEMO -->
+<h2>Interactive Room Preview</h2>
+<div id="demo-container">
+  <div id="demo-label">ROOM TEMPLATE</div>
+  <div id="demo-grid"></div>
+  <div class="demo-buttons" id="demo-buttons"></div>
+</div>
+
+<!-- ============================================================ LEVEL THEMES -->
+<h2>Level Theme Tile Palettes</h2>
+<div class="themes-grid" id="themes-grid"></div>
+
+<footer>
+  ITERATION GDD v0.1 — ASCII Library — AXIOM Biological Corp does not endorse this document.
+</footer>
+
+<script>
+// PHOSPHOR PALETTE — colorblind rationale in CSS comments above
+// Primary differentiator is always CHAR SHAPE, color is secondary signal
+const PH = {
+  primary:  '#4dba65',  // phosphor green
+  bright:   '#8ee09a',  // bright phosphor — player
+  dim:      '#1a4a20',  // visited-not-visible
+  glow:     '#b8ffcc',  // terminal / special
+  water:    '#1a3d80',  // deep navy (safe all colorblind types)
+  waterSurf:'#2a5aaa',  // water highlight
+  danger:   '#c87800',  // amber-orange — NOT red
+  fire:     '#d48000',  // fire — brighter amber
+  item:     '#c0a000',  // loot — warm yellow
+  npc:      '#9ad8a8',  // friendly NPC — lighter phosphor
+  hostile:  '#d48800',  // hostile — amber, distinct luminance from npc
+  dead:     '#2a3a2a',  // corpse — near-bg
+  mountain: '#6a8a6a',  // gray-green peaks
+  rubble:   '#3a4a3a',  // rubble — dark muted
+  nature:   '#2d6040',  // forest — deeper green, distinct from primary
+  grass:    '#3a7040',  // grass floor
+  wall:     '#1a3320',  // wall — dim phosphor
+  floor:    '#0d1a0f',  // floor — very dark
+  neutral:  '#4a6a50',  // neutral structures
+  drift:    '#5abba0',  // IDENTITY_DRIFT late-game — subtly cooler
+};
+
+// ─── TILE DATA ─────────────────────────────────────────────────────────────
+const tiles = [
+  { char: '@', color: PH.bright,   name: 'Player',              use: 'Entities' },
+  { char: '!', color: PH.npc,      name: 'Friendly NPC',        use: 'Entities' },
+  { char: '&', color: PH.hostile,  name: 'Hostile',             use: 'Entities' },
+  { char: 'X', color: PH.dead,     name: 'Dead / Body',         use: 'Entities' },
+  { char: '.', color: PH.floor,    name: 'Floor',               use: 'All levels' },
+  { char: '#', color: PH.wall,     name: 'Wall',                use: 'All levels' },
+  { char: '~', color: PH.waterSurf,name: 'Water / Ocean',       use: 'The Crawl, coast' },
+  { char: '=', color: PH.water,    name: 'Deep water / still',  use: 'Lakes, ocean' },
+  { char: '^', color: PH.mountain, name: 'Mountain / Ridge',    use: 'Elevated terrain' },
+  { char: 'T', color: PH.nature,   name: 'Tree',                use: 'The Crawl, forest' },
+  { char: '%', color: PH.nature,   name: 'Dense growth',        use: 'The Crawl' },
+  { char: '"', color: PH.grass,    name: 'Ground cover / grass', use: 'Open areas' },
+  { char: ',', color: PH.rubble,   name: 'Rubble / debris',     use: 'Ruins, mine' },
+  { char: '+', color: PH.danger,   name: 'Door (closed)',        use: 'All levels' },
+  { char: '-', color: PH.neutral,  name: 'Door (open H)',        use: 'All levels' },
+  { char: '|', color: PH.neutral,  name: 'Pillar / wall vert',  use: 'Station, tower' },
+  { char: '<', color: PH.glow,     name: 'Exit / ascend',        use: 'All levels' },
+  { char: '>', color: PH.glow,     name: 'Descend / enter',      use: 'All levels' },
+  { char: '0', color: PH.glow,     name: 'Terminal',             use: 'All levels' },
+  { char: '_', color: PH.neutral,  name: 'Surface / table',      use: 'Station, labs' },
+  { char: '[', color: PH.neutral,  name: 'Container (sealed)',   use: 'All levels' },
+  { char: ']', color: PH.dim,      name: 'Container (empty)',    use: 'All levels' },
+  { char: '$', color: PH.item,     name: 'Loot / resource',      use: 'All levels' },
+  { char: '?', color: PH.glow,     name: 'Unknown / unread',     use: 'All levels' },
+  { char: '*', color: PH.fire,     name: 'Fire / spark / alert', use: 'Hazard zones' },
+  { char: 'o', color: PH.danger,   name: 'Light / alarm',        use: 'Station corridors' },
+  { char: ':', color: PH.floor,    name: 'Floor drain / grate',  use: 'Underground' },
+  { char: 'M', color: PH.drift,    name: 'Memory / log fragment',use: 'IDENTITY_DRIFT' },
+  { char: 'V', color: PH.neutral,  name: 'Vending / dispenser',  use: 'Station hub' },
+  { char: 'S', color: PH.glow,     name: 'Survey port / dock',   use: 'SV unit areas' },
+];
+
+// ─── PALETTE DATA ───────────────────────────────────────────────────────────
+const palette = [
+  { name: 'Background',           hex: '#010201', use: 'Canvas — near-black, hair of warmth' },
+  { name: 'Phosphor Primary',     hex: '#4dba65', use: 'Main tile color, walls, text' },
+  { name: 'Phosphor Bright',      hex: '#8ee09a', use: 'Player, highlighted, selected' },
+  { name: 'Phosphor Dim',         hex: '#1a4a20', use: 'Visited but not currently visible' },
+  { name: 'Phosphor Off',         hex: '#0d2410', use: 'Floor in shadow' },
+  { name: 'Terminal Glow',        hex: '#b8ffcc', use: 'Terminals, exits, special items' },
+  { name: 'Water (navy)',         hex: '#1a3d80', use: 'Ocean / river tiles — colorblind safe' },
+  { name: 'Water surface',        hex: '#2a5aaa', use: 'Shallows, moving water' },
+  { name: 'Danger (amber)',       hex: '#c87800', use: 'Hostile, locked doors, alerts — not red' },
+  { name: 'Fire',                 hex: '#d48000', use: 'Fire tiles, hazard markers' },
+  { name: 'Loot / resource',      hex: '#c0a000', use: 'Items on ground, interactables' },
+  { name: 'Friendly NPC',         hex: '#9ad8a8', use: 'Mercy-7, Casimir, Dariusz, Clavius' },
+  { name: 'Nature',               hex: '#2d6040', use: 'Trees, Crawl growth — deeper than primary' },
+  { name: 'Grass / ground',       hex: '#3a7040', use: 'Open ground, light vegetation' },
+  { name: 'Mountain',             hex: '#6a8a6a', use: 'Ridges, rocky terrain' },
+  { name: 'IDENTITY_DRIFT shift', hex: '#5abba0', use: 'Log entry color shift — late game. Subtle.' },
+  { name: 'Dead / spent',         hex: '#2a3a2a', use: 'Corpses, depleted containers' },
+  { name: 'Panel BG',             hex: '#050e07', use: 'UI panels, inventory background' },
+  { name: 'Panel border',         hex: '#1a3320', use: 'UI borders — same as wall' },
+];
+
+// ─── ROOM TEMPLATES ─────────────────────────────────────────────────────────
+const rooms = [
+  {
+    label: 'Standard Room',
+    desc: 'General-purpose interior. Use for any level.',
+    raw: `########
+#......#
+#..0...#
+#......+
+#...[..#
+#......#
+########`,
+  },
+  {
+    label: 'Mountain Pass',
+    desc: 'Outdoor rocky terrain with trees.',
+    raw: `^^##....
+^##.....
+##.T....
+#.......
+.......T
+.......#
+##.....#
+###...^^`,
+  },
+  {
+    label: 'Mine Corridor',
+    desc: 'Industrial tunnel with coolant channel.',
+    raw: `########
+,......,
+~......~
+=......=
+,......,
+########`,
+  },
+  {
+    label: 'Slum Block',
+    desc: 'Worker housing. Debris, open doors.',
+    raw: `##+++###
+#......#
++.._...#
+#......#
+#...%..+
+#......#
+##.#####`,
+  },
+  {
+    label: 'Corp Corridor',
+    desc: 'AXIOM Spire. Clean, sterile, hostile.',
+    raw: `########
+|......|
+|..0...+
+|......|
+|......|
+|..0...+
+|......|
+########`,
+  },
+  {
+    label: 'River Crossing',
+    desc: 'Bridge over coolant flow.',
+    raw: `........
+~~~~~~~~
+========
+~~~~~~~~
+........`,
+  },
+  {
+    label: 'Lake / Pool',
+    desc: 'Open water. Impassable without bridge.',
+    raw: `...~~~~.
+..~~~~~.
+.~~~~~~.
+..~~~~~.
+...~~~~.`,
+  },
+  {
+    label: 'Mountain Peak',
+    desc: 'Summit terrain. Exposed, suffocation risk.',
+    raw: `^^^^^^^
+^^...^^
+^.....^
+^..@..^
+^.....^
+^^...^^
+^^^^^^^`,
+  },
+  {
+    label: 'IRIS Cortex',
+    desc: 'Final level. Fixed layout. Terminal center.',
+    raw: `########
+#......#
+#.0..0.#
+#......#
+#..0...#
+#......#
+#.0..0.#
+########`,
+  },
+  {
+    label: 'Forest Edge',
+    desc: 'Transition between Flats and wilderness.',
+    raw: `T"T"T"T"
+"......T
+T.......
+".......
+T.......
+"....T..
+T".T"T".`,
+  },
+  {
+    label: 'Black Market',
+    desc: 'Underbelly vendor stalls. Tight alleys.',
+    raw: `##++#+##
+#_...._#
++.......
+#_...._#
+##++#+##
+:......:
+########`,
+  },
+  {
+    label: 'Medical Bay',
+    desc: 'Tutorial start. Abandoned clinic.',
+    raw: `########
+#......#
+#._.._.#
+#......#
+#.0....+
+#......#
+########`,
+  },
+];
+
+// ─── LEVEL THEMES — keyed to narrative_tree.docx ────────────────────────────
+const themes = [
+  {
+    name: 'Act 1 — Arrival',
+    tiles: [
+      {char:'#',color:PH.wall},    {char:'.',color:PH.floor},
+      {char:'0',color:PH.glow},    {char:'S',color:PH.glow},
+      {char:'_',color:PH.neutral}, {char:'!',color:PH.npc},
+    ],
+    desc: 'Cold open. No tutorial. You notice your own hands first. Terminal is the only warmth.',
+  },
+  {
+    name: 'Act 1 — Survey Grid (outdoors)',
+    tiles: [
+      {char:'"',color:PH.grass},   {char:'T',color:PH.nature},
+      {char:'%',color:PH.nature},  {char:'.',color:PH.floor},
+      {char:'^',color:PH.mountain},{char:'~',color:PH.waterSurf},
+      {char:'!',color:PH.npc},     {char:'M',color:PH.drift},
+    ],
+    desc: 'First open area. Three optional encounters. Mercy-7 is somewhere in the growth.',
+  },
+  {
+    name: 'The Crawl (reclaimed zone)',
+    tiles: [
+      {char:'T',color:PH.nature},  {char:'%',color:PH.nature},
+      {char:'"',color:PH.grass},   {char:'~',color:PH.waterSurf},
+      {char:'=',color:PH.water},   {char:',',color:PH.rubble},
+      {char:'!',color:PH.npc},     {char:'X',color:PH.dead},
+    ],
+    desc: 'Only level with real color — blue water, deep green. An ecosystem reclaiming what was taken.',
+  },
+  {
+    name: 'Act 2 — Archive (underground)',
+    tiles: [
+      {char:'#',color:PH.wall},    {char:'.',color:PH.floor},
+      {char:'0',color:PH.glow},    {char:'[',color:PH.neutral},
+      {char:':',color:PH.floor},   {char:'?',color:PH.glow},
+      {char:'M',color:PH.drift},   {char:'!',color:PH.npc},
+    ],
+    desc: 'Stone and old data. Pick 4 of 7 nodes — what you read shapes what you can argue in Act 3.',
+  },
+  {
+    name: 'Station Hub (Act 2–3)',
+    tiles: [
+      {char:'|',color:PH.neutral}, {char:'.',color:PH.floor},
+      {char:'+',color:PH.danger},  {char:'V',color:PH.neutral},
+      {char:'0',color:PH.glow},    {char:'o',color:PH.danger},
+      {char:'!',color:PH.npc},     {char:'&',color:PH.hostile},
+    ],
+    desc: "Casimir watches serials here. Clavius brings 'Victory' ration packs. Tastes like chalk.",
+  },
+  {
+    name: 'Act 3 — The Weight (convergence)',
+    tiles: [
+      {char:'#',color:PH.wall},    {char:'.',color:PH.floor},
+      {char:'0',color:PH.glow},    {char:'M',color:PH.drift},
+      {char:'!',color:PH.npc},     {char:'X',color:PH.dead},
+      {char:'S',color:PH.glow},    {char:'>',color:PH.glow},
+    ],
+    desc: 'The log color has been shifting for a while. The player may or may not have noticed.',
+  },
+  {
+    name: 'Lore / Note Screen (full-screen)',
+    tiles: [
+      {char:'|',color:'#e8e8e8'}, {char:'|',color:'#e8e8e8'},
+      {char:'|',color:'#e8e8e8'}, {char:'A',color:'#ffffff'},
+      {char:'B',color:'#ffffff'}, {char:'C',color:'#ffffff'},
+    ],
+    desc: 'White on black — no phosphor. Edicts, transmissions, the Three Pillars style. Fills the screen.',
+  },
+];
+
+// ─── RENDER TILES ───────────────────────────────────────────────────────────
+const tileGrid = document.getElementById('tile-grid');
+tiles.forEach(t => {
+  const card = document.createElement('div');
+  card.className = 'tile-card';
+  card.title = t.use;
+  card.innerHTML = `
+    <span class="tile-char" style="color:${t.color}">${t.char}</span>
+    <div class="tile-info">
+      <div class="tile-name">${t.name}</div>
+      <div class="tile-use">${t.use}</div>
+    </div>`;
+  tileGrid.appendChild(card);
+});
+
+// ─── RENDER PALETTE ─────────────────────────────────────────────────────────
+const paletteGrid = document.getElementById('palette-grid');
+palette.forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'palette-card';
+  card.innerHTML = `
+    <div class="color-swatch" style="background:${p.hex}"></div>
+    <div class="color-info">
+      <div class="color-name">${p.name}</div>
+      <div class="color-hex">${p.hex} — ${p.use}</div>
+    </div>`;
+  paletteGrid.appendChild(card);
+});
+
+// ─── RENDER ROOM DEMO ───────────────────────────────────────────────────────
+const tileColorMap = {};
+tiles.forEach(t => { tileColorMap[t.char] = t.color; });
+tileColorMap[' '] = '#010201';
+
+function renderRoom(raw) {
+  const demoGrid = document.getElementById('demo-grid');
+  demoGrid.innerHTML = '';
+  raw.split('\n').forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'room-row';
+    for (const ch of row) {
+      const cell = document.createElement('span');
+      cell.className = 'cell';
+      cell.textContent = ch === ' ' ? '\u00a0' : ch;
+      cell.style.color = tileColorMap[ch] || PH.primary;
+      rowEl.appendChild(cell);
+    }
+    demoGrid.appendChild(rowEl);
+  });
+}
+
+const demoButtons = document.getElementById('demo-buttons');
+rooms.forEach((room, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'demo-btn' + (i === 0 ? ' active' : '');
+  btn.textContent = room.label;
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('demo-label').textContent = `${room.label} — ${room.desc}`;
+    renderRoom(room.raw);
+  });
+  demoButtons.appendChild(btn);
+});
+renderRoom(rooms[0].raw);
+document.getElementById('demo-label').textContent = `${rooms[0].label} — ${rooms[0].desc}`;
+
+// ─── RENDER ROOM TEMPLATES GRID ─────────────────────────────────────────────
+// (The interactive demo above replaces a static grid — themes below are separate)
+
+// ─── RENDER LEVEL THEMES ────────────────────────────────────────────────────
+const themesGrid = document.getElementById('themes-grid');
+themes.forEach(theme => {
+  const card = document.createElement('div');
+  card.className = 'theme-card';
+
+  const tilePips = theme.tiles.map(t =>
+    `<span class="theme-tile" style="color:${t.color}" title="${t.char}">${t.char}</span>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="theme-name">${theme.name}</div>
+    <div class="theme-tiles">${tilePips}</div>
+    <div class="theme-desc">${theme.desc}</div>`;
+  themesGrid.appendChild(card);
+});
+</script>
+</body>
+</html>

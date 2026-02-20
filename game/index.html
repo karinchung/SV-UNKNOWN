@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>SV-UNKNOWN — Survey Corps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── Name entry screen ──────────────────────────────────────────────────── -->
+<div id="name-screen">
+  <div id="name-header">
+    <h1>Survey Corps</h1>
+    <p>You've been doing this for as long as you can remember.<br>Which — you've noticed — is not very long at all.</p>
+  </div>
+  <div id="name-form">
+    <span id="name-prefix">SV —</span>
+    <input id="name-input" type="text" maxlength="12" placeholder="CALLSIGN" autocomplete="off" spellcheck="false">
+    <div id="pronoun-row">
+      <button class="pronoun-btn active" data-subj="they" data-obj="them" data-poss="their">they/them</button>
+      <button class="pronoun-btn"        data-subj="she"  data-obj="her"  data-poss="her" >she/her</button>
+      <button class="pronoun-btn"        data-subj="he"   data-obj="him"  data-poss="his" >he/him</button>
+    </div>
+    <button id="name-submit">[ Begin Survey ]</button>
+  </div>
+</div>
+
+<!-- ── Main app ───────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div id="main-row">
+
+    <!-- Game canvas -->
+    <div id="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- HUD sidebar -->
+    <div id="hud">
+
+      <div class="hud-panel">
+        <div class="hud-panel-title">Unit Analysis</div>
+        <div id="hud-callsign">SV-UNKNOWN</div>
+        <div id="hud-level">—</div>
+        <div id="hud-credits">CR: 0</div>
+      </div>
+
+      <div class="hud-panel">
+        <div class="hud-panel-title">Systems</div>
+        <div id="hud-hp"></div>
+        <div id="hud-cargo"></div>
+      </div>
+
+      <div class="hud-panel hidden" id="hud-earth">
+        <div class="hud-panel-title">Earth Systems</div>
+        <div class="earth-bars"></div>
+      </div>
+
+      <div class="hud-panel">
+        <div class="hud-panel-title">Active Contracts</div>
+        <ul id="hud-quests"></ul>
+      </div>
+
+      <div class="hud-panel">
+        <div class="hud-panel-title">Survey Log</div>
+        <ul id="hud-log"></ul>
+      </div>
+
+      <!-- Contextual hint: shown when NPC/exit is adjacent -->
+      <div class="hud-panel" id="hud-hint" style="display:none">
+        <div id="hud-hint-text"></div>
+      </div>
+
+      <div class="hud-panel" id="hud-keys">
+        <div class="hud-panel-title">Controls</div>
+        <div class="key-hint"><kbd>WASD</kbd> Move</div>
+        <div class="key-hint"><kbd>E</kbd> Interact</div>
+        <div class="key-hint"><kbd>X</kbd> Inspect</div>
+        <div class="key-hint key-hint-btn" id="hud-btn-inventory"><kbd>I</kbd> Inventory</div>
+        <div class="key-hint"><kbd>Tab</kbd> Diagnostics</div>
+        <div class="key-hint key-hint-btn" id="hud-btn-legend"><kbd>L</kbd> Legend</div>
+      </div>
+
+    </div><!-- /hud -->
+  </div><!-- /main-row -->
+
+  <!-- Touch controls -->
+  <div id="touch-controls">
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" id="btn-w">↑</button>
+      <div></div>
+      <button class="dpad-btn" id="btn-a">←</button>
+      <div class="dpad-center"></div>
+      <button class="dpad-btn" id="btn-d">→</button>
+      <div></div>
+      <button class="dpad-btn" id="btn-s">↓</button>
+      <div></div>
+    </div>
+    <div class="action-btns">
+      <button class="action-btn" id="btn-e">[ E ]<br><small>Interact</small></button>
+      <button class="action-btn" id="btn-i">[ I ]<br><small>Inventory</small></button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ── Flash message ──────────────────────────────────────────────────────── -->
+<div id="msg-flash" class="hidden"></div>
+
+<!-- ── Dialogue overlay ───────────────────────────────────────────────────── -->
+<div id="dialogue-overlay" class="hidden">
+  <div id="dialogue-box">
+    <div id="dlg-left">
+      <div id="dlg-portrait"></div>
+      <div id="dlg-readouts"></div>
+    </div>
+    <div id="dlg-right">
+      <div>
+        <div id="dlg-npc-name"></div>
+        <div id="dlg-npc-title"></div>
+      </div>
+      <div id="dlg-text"></div>
+      <div id="dlg-choices"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Inventory overlay ───────────────────────────────────────────────────── -->
+<div id="inventory-overlay" class="hidden">
+  <div id="inventory-box">
+    <div class="overlay-title">Cargo — [ESC or I to close]</div>
+    <ul id="inv-list"></ul>
+    <div id="inv-desc"></div>
+  </div>
+</div>
+
+<!-- ── Legend overlay ─────────────────────────────────────────────────────── -->
+<div id="legend-overlay" class="hidden">
+  <div id="legend-box">
+    <div class="legend-title">Map Legend — [L or ESC to close]</div>
+
+    <div class="legend-section-title">Terrain</div>
+    <div class="legend-grid">
+      <span class="legend-char">·</span><span class="legend-desc">Floor</span>
+      <span class="legend-char">┼</span><span class="legend-desc">Wall</span>
+      <span class="legend-char">▫</span><span class="legend-desc">Door</span>
+      <span class="legend-char">~</span><span class="legend-desc">Shallow water (rust)</span>
+      <span class="legend-char">═</span><span class="legend-desc">Bridge</span>
+      <span class="legend-char">▲</span><span class="legend-desc">Mountain</span>
+      <span class="legend-char">●</span><span class="legend-desc">Rock (clearable)</span>
+      <span class="legend-char">░</span><span class="legend-desc">Grass</span>
+      <span class="legend-char">▪</span><span class="legend-desc">Rubble</span>
+      <span class="legend-char">♠</span><span class="legend-desc">Tree</span>
+      <span class="legend-char">❦</span><span class="legend-desc">Growth (Crawl)</span>
+    </div>
+
+    <div class="legend-section-title">Interactables</div>
+    <div class="legend-grid">
+      <span class="legend-char">◈</span><span class="legend-desc">Quest board</span>
+      <span class="legend-char">◉</span><span class="legend-desc">Station terminal</span>
+      <span class="legend-char">▣</span><span class="legend-desc">Vending unit</span>
+      <span class="legend-char">✚</span><span class="legend-desc">Repair bay (25 CR)</span>
+      <span class="legend-char">▤</span><span class="legend-desc">Container (loot)</span>
+      <span class="legend-char">◇</span><span class="legend-desc">Memory fragment</span>
+    </div>
+
+    <div class="legend-section-title">Navigation</div>
+    <div class="legend-grid">
+      <span class="legend-char">&gt;</span><span class="legend-desc">Exit down (to Earth)</span>
+      <span class="legend-char">&lt;</span><span class="legend-desc">Exit up (to station)</span>
+      <span class="legend-char">@</span><span class="legend-desc">You</span>
+      <span class="legend-char">!</span><span class="legend-desc">NPC (approach + E)</span>
+    </div>
+
+    <div class="legend-section-title">Controls</div>
+    <div class="legend-grid">
+      <span class="legend-char">WASD</span><span class="legend-desc">Move</span>
+      <span class="legend-char">E</span><span class="legend-desc">Interact / Advance</span>
+      <span class="legend-char">X</span><span class="legend-desc">Inspect mode</span>
+      <span class="legend-char">I</span><span class="legend-desc">Inventory</span>
+      <span class="legend-char">L</span><span class="legend-desc">Map legend</span>
+      <span class="legend-char">Tab</span><span class="legend-desc">Field diagnostics</span>
+      <span class="legend-char">1–9</span><span class="legend-desc">Dialogue choices</span>
+      <span class="legend-char">ESC</span><span class="legend-desc">Close dialogue / menu</span>
+    </div>
+
+    <div class="legend-close">Press L or ESC to close</div>
+  </div>
+</div>
+
+<!-- ── Note / lore full-screen ────────────────────────────────────────────── -->
+<div id="note-overlay" class="hidden" tabindex="0">
+  <div id="note-text"></div>
+</div>
+
+<!-- ── Departure confirmation ─────────────────────────────────────────────── -->
+<div id="departure-overlay" class="hidden">
+  <div id="departure-box">
+    <div class="dep-header">Departure Protocol</div>
+    <div class="dep-body" id="dep-body">
+      Warning: leaving Earth now will reset hazard accumulation.<br>
+      Current mission data will be logged.
+    </div>
+    <div class="dep-btn-row">
+      <button class="dep-btn" id="dep-cancel">[ Stay ]</button>
+      <button class="dep-btn dep-confirm" id="dep-confirm">[ Launch Pod ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Pod launch scene ────────────────────────────────────────────────────── -->
+<div id="pod-launch" class="hidden">
+  <div id="pod-launch-text"></div>
+</div>
+
+<!-- ── Diagnose overlay (Tab key) ─────────────────────────────────────────── -->
+<div id="diagnose-overlay" class="hidden">
+  <div id="diagnose-box">
+    <div class="diag-header">Field Diagnostics — [Tab or ESC to close]</div>
+    <div id="diag-content"></div>
+    <div class="diag-close">Press Tab or ESC to close</div>
+  </div>
+</div>
+
+<!-- ── Scripts — load order matters; dependencies first ───────────────────── -->
+<!-- Libraries -->
+<script src="js/vendor/rot.js"></script>
+<script src="js/vendor/ink.js"></script>
+
+<!-- Game modules -->
+<script src="js/config.js"></script>
+<script src="js/tiles.js"></script>
+<script src="js/flags.js"></script>
+<script src="js/worldgen.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/levels.js"></script>
+<script src="js/data/npcs.js"></script>
+<script src="js/player.js"></script>
+<script src="js/world.js"></script>
+<script src="js/quests.js"></script>
+<script src="js/ink-dialogue.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/input.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>
